@@ -23,7 +23,7 @@ def load_geojson():
 
 df_national, df_geo = load_data()
 geojson_dep = load_geojson()
-liste_prenoms = sorted(df_national["prenom"].unique())[:100]
+liste_prenoms = sorted(df_national["prenom"].unique())
 liste_zones = sorted(df_geo["nom_geo"].dropna().unique())
 
 def echelle_avec_zero_blanc(nom_palette):
@@ -64,11 +64,31 @@ def preparer_donnees_carte(prenom, annee):
 # ============ SIDEBAR : TOUS LES FILTRES ============
 st.sidebar.header("Filtres")
 
+
+recherche_texte = st.sidebar.text_input(
+    "Rechercher un prénom",
+    placeholder="Tapez au moins 2 lettres..."
+)
+
+if len(recherche_texte) >= 2:
+    options_filtrees = [p for p in liste_prenoms if p.startswith(recherche_texte.upper())][:100]
+else:
+    options_filtrees = []
+
+prenoms_selectionnes = st.sidebar.multiselect(
+    "Prénom(s)",
+    options=options_filtrees,
+    placeholder="Tapez d'abord dans le champ ci-dessus" if not recherche_texte else "Choisissez parmi les résultats"
+)
+
+
+""""#Trop lourd pour streamlit cloud, multiselect n'arrive pas à gérer les 49000 prénomns
 prenoms_selectionnes = st.sidebar.multiselect(
     "Prénom(s)", 
     options=liste_prenoms, 
     placeholder="Tapez un ou plusieurs prénoms..."
 )
+""""
 zone_selectionnee = st.sidebar.selectbox(
     "Région ou département (optionnel)", options=liste_zones,
     index=None, placeholder="Toute la France"
