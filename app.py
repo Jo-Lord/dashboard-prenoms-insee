@@ -26,9 +26,13 @@ geojson_dep = load_geojson()
 liste_prenoms = sorted(df_national["prenom"].unique())
 liste_zones = sorted(df_geo["nom_geo"].dropna().unique())
 
-def echelle_avec_zero_blanc(nom_palette):
+def echelle_avec_zero_blanc(nom_palette,seuil=0.03):
     couleur_debut, couleur_fin = px.colors.sample_colorscale(nom_palette, [0, 1])
-    return [(0.0, "white"), (0.0001, couleur_debut), (1.0, couleur_fin)]
+
+    return [
+        (0.0, "white"), 
+        (seuil, couleur_debut), 
+        (1.0, couleur_fin)]
 
 @st.cache_data(show_spinner=False)
 def preparer_donnees_graphique(prenoms, zone, periode_min, periode_max):
@@ -64,28 +68,22 @@ def preparer_donnees_carte(prenom, annee):
 # ============ SIDEBAR : TOUS LES FILTRES ============
 st.sidebar.header("Filtres")
 
-# Sélection du sexe
-sexe_choisi = st.sidebar.multiselect(
-    "Fille ou garçon ?",
-    options=["Fille", "Garçon"]
+
+recherche_texte = st.sidebar.text_input(
+    "Rechercher un prénom",
+    placeholder="Tapez au moins 2 lettres..."
 )
 
-mapping_sexe = {"Garçon": "M", "Fille": "F"}
-sexes_filtres = [mapping_sexe[s] for s in sexe_choisi]
-
-# Sélection du/des prénom(s), dépend du sexe choisi
-if sexes_filtres:
-    liste_prenoms_filtree = sorted(
-        df_national[df_national["sexe"].isin(sexes_filtres)]["prenom"].unique()
-    )
-    prenoms_selectionnes = st.sidebar.multiselect(
-        "Prénom(s)",
-        options=liste_prenoms_filtree,
-        placeholder="Tapez un ou plusieurs prénoms..."
-    )
+if len(recherche_texte) >= 2:
+    options_filtrees = [p for p in liste_prenoms if p.startswith(recherche_texte.upper())][:100]
 else:
-    prenoms_selectionnes = []
-    st.sidebar.caption("Sélectionnez d'abord Fille et/ou Garçon")
+    options_filtrees = []
+
+prenoms_selectionnes = st.sidebar.multiselect(
+    "Prénom(s) sélectionné(s)",
+    options=options_filtrees,
+    placeholder="Tapez d'abord dans le champ ci-dessus" if not recherche_texte else "Choisissez parmi les résultats"
+)
 
 
 
@@ -97,11 +95,6 @@ else:
 #)
 
 
-zone_selectionnee = st.sidebar.selectbox(
-    "Région ou département (optionnel)", options=liste_zones,
-    index=None, placeholder="Toute la France"
-)
-
 periode_min = int(df_national["periode"].min())
 periode_max = int(df_national["periode"].max())
 
@@ -112,11 +105,23 @@ periode_selectionnee = st.sidebar.slider(
     value=(periode_min, periode_max),  # tuple = active le mode "plage" (deux curseurs)
     key="slider_periode"
 )
+
+zone_selectionnee = st.sidebar.selectbox(
+    "Région ou département (optionnel)", options=liste_zones,
+    index=None, placeholder="Toute la France"
+)
+
 st.sidebar.divider()
-st.sidebar.subheader("Carte & classement")
+st.sidebar.subheader("Carte")
 annee_carte = st.sidebar.slider(
     "Année (carte)", int(df_geo["periode"].min()), int(df_geo["periode"].max()), 2025
 )
+echelle_carte = st.sidebar.radio(
+    "Échelle de la carte",
+    options=["Logarithmique", "Valeurs absolues"],
+    horizontal=True
+)
+st.sidebar.subheader("Classement")
 annee_classement = st.sidebar.slider(
     "Année (classement)", int(df_national["periode"].min()), int(df_national["periode"].max()),
     2025, key="slider_classement"
@@ -157,13 +162,27 @@ if prenoms_selectionnes:
     prenom_carte = prenoms_selectionnes[0]
     df_carte = preparer_donnees_carte(prenom_carte, annee_carte)
 
+    if echelle_carte == "Logarithmique":
+        colonne_couleur = "valeur_log"
+        titre_legende = "Naissances (log)"
+    else:
+        colonne_couleur = "valeur"
+        titre_legende = "Naissances"
+
     fig = px.choropleth(
         df_carte, geojson=geojson_dep, locations="geographie", featureidkey="properties.code",
-        color="valeur_log", color_continuous_scale=echelle_avec_zero_blanc("Viridis"),
+        color=colonne_couleur,
+        color_continuous_scale=echelle_avec_zero_blanc("Viridis"),
         scope="europe", title=f"Naissances de {prenom_carte} en {annee_carte} par département",
-        hover_data={"valeur": True, "valeur_log": False}
+        hover_data={"valeur": True, "valeur_log": False},
+        labels={colonne_couleur: titre_legende}
     )
     fig.update_geos(fitbounds="locations", visible=False)
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",  # fond de toute la figure (zone autour du graphique)
+        plot_bgcolor="rgba(0,0,0,0)",   # fond de la zone de tracé elle-même
+        geo=dict(bgcolor="rgba(0,0,0,0)")  # fond spécifique à la carte géographique
+    )
     st.plotly_chart(fig)
 
 # ============ ZONE CENTRALE : CLASSEMENT ============
