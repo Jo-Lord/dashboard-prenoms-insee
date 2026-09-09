@@ -82,13 +82,15 @@ prenoms_selectionnes = st.sidebar.multiselect(
 )
 
 
-""""#Trop lourd pour streamlit cloud, multiselect n'arrive pas à gérer les 49000 prénomns
-prenoms_selectionnes = st.sidebar.multiselect(
-    "Prénom(s)", 
-    options=liste_prenoms, 
-    placeholder="Tapez un ou plusieurs prénoms..."
-)
-""""
+
+#Trop lourd pour streamlit cloud, multiselect n'arrive pas à gérer les 49000 prénomns
+#prenoms_selectionnes = st.sidebar.multiselect(
+#    "Prénom(s)", 
+#    options=liste_prenoms, 
+#    placeholder="Tapez un ou plusieurs prénoms..."
+#)
+
+
 zone_selectionnee = st.sidebar.selectbox(
     "Région ou département (optionnel)", options=liste_zones,
     index=None, placeholder="Toute la France"
