@@ -64,22 +64,28 @@ def preparer_donnees_carte(prenom, annee):
 # ============ SIDEBAR : TOUS LES FILTRES ============
 st.sidebar.header("Filtres")
 
-
-recherche_texte = st.sidebar.text_input(
-    "Rechercher un prénom",
-    placeholder="Tapez au moins 2 lettres..."
+# Sélection du sexe
+sexe_choisi = st.sidebar.multiselect(
+    "Fille ou garçon ?",
+    options=["Fille", "Garçon"]
 )
 
-if len(recherche_texte) >= 2:
-    options_filtrees = [p for p in liste_prenoms if p.startswith(recherche_texte.upper())][:100]
+mapping_sexe = {"Garçon": "M", "Fille": "F"}
+sexes_filtres = [mapping_sexe[s] for s in sexe_choisi]
+
+# Sélection du/des prénom(s), dépend du sexe choisi
+if sexes_filtres:
+    liste_prenoms_filtree = sorted(
+        df_national[df_national["sexe"].isin(sexes_filtres)]["prenom"].unique()
+    )
+    prenoms_selectionnes = st.sidebar.multiselect(
+        "Prénom(s)",
+        options=liste_prenoms_filtree,
+        placeholder="Tapez un ou plusieurs prénoms..."
+    )
 else:
-    options_filtrees = []
-
-prenoms_selectionnes = st.sidebar.multiselect(
-    "Prénom(s)",
-    options=options_filtrees,
-    placeholder="Tapez d'abord dans le champ ci-dessus" if not recherche_texte else "Choisissez parmi les résultats"
-)
+    prenoms_selectionnes = []
+    st.sidebar.caption("Sélectionnez d'abord Fille et/ou Garçon")
 
 
 
@@ -164,6 +170,17 @@ if prenoms_selectionnes:
 st.subheader("Classement des prénoms")
 df_classement = df_national[df_national["periode"] == annee_classement]
 
+if prenoms_selectionnes:
+    st.write("**Rang du/des prénom(s) sélectionné(s) cette année-là :**")
+    for prenom in prenoms_selectionnes:
+        lignes = df_classement[df_classement["prenom"] == prenom]
+        if lignes.empty:
+            st.write(f"- {prenom} : non attribué en {annee_classement}")
+        else:
+            for _, ligne in lignes.iterrows():
+                sexe_label = "garçons" if ligne["sexe"] == "M" else "filles"
+                st.write(f"- {prenom} ({sexe_label}) : rang {int(ligne['rang'])} — {int(ligne['valeur'])} naissances")
+                
 top_garcons = (
     df_classement[(df_classement["sexe"] == "M") & (df_classement["rang"] <= top_n)]
     .sort_values("rang")[["rang", "prenom", "valeur"]].set_index("rang")
@@ -181,13 +198,3 @@ with col_f:
     st.write(f"**Top {top_n} filles — {annee_classement}**")
     st.dataframe(top_filles)
 
-if prenoms_selectionnes:
-    st.write("**Rang du/des prénom(s) sélectionné(s) cette année-là :**")
-    for prenom in prenoms_selectionnes:
-        lignes = df_classement[df_classement["prenom"] == prenom]
-        if lignes.empty:
-            st.write(f"- {prenom} : non attribué en {annee_classement}")
-        else:
-            for _, ligne in lignes.iterrows():
-                sexe_label = "garçons" if ligne["sexe"] == "M" else "filles"
-                st.write(f"- {prenom} ({sexe_label}) : rang {int(ligne['rang'])} — {int(ligne['valeur'])} naissances")
