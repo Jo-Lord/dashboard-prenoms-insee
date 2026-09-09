@@ -30,6 +30,37 @@ def echelle_avec_zero_blanc(nom_palette):
     couleur_debut, couleur_fin = px.colors.sample_colorscale(nom_palette, [0, 1])
     return [(0.0, "white"), (0.0001, couleur_debut), (1.0, couleur_fin)]
 
+@st.cache_data(show_spinner=False)
+def preparer_donnees_graphique(prenoms, zone, periode_min, periode_max):
+    if zone:
+        df_filtre = df_geo[
+            (df_geo["prenom"].isin(prenoms)) & (df_geo["nom_geo"] == zone)
+        ]
+    else:
+        df_filtre = df_national[df_national["prenom"].isin(prenoms)]
+
+    df_filtre = df_filtre[
+        (df_filtre["periode"] >= periode_min) & (df_filtre["periode"] <= periode_max)
+    ].copy()
+
+    df_filtre["sexe_label"] = df_filtre["sexe"].map({"M": "Garçons", "F": "Filles"})
+    df_filtre["serie"] = df_filtre["prenom"] + " (" + df_filtre["sexe_label"] + ")"
+    return df_filtre.pivot_table(index="periode", columns="serie", values="valeur", fill_value=0)
+
+
+@st.cache_data(show_spinner=False)
+def preparer_donnees_carte(prenom, annee):
+    df_carte = df_geo[
+        (df_geo["prenom"] == prenom) & (df_geo["niveau_geographique"] == "DEP") &
+        (df_geo["periode"] == annee)
+    ]
+    df_carte = df_carte.groupby("geographie", as_index=False)["valeur"].sum()
+    tous_departements = df_geo[df_geo["niveau_geographique"] == "DEP"][["geographie"]].drop_duplicates()
+    df_carte = tous_departements.merge(df_carte, on="geographie", how="left")
+    df_carte["valeur"] = df_carte["valeur"].fillna(0)
+    df_carte["valeur_log"] = np.log1p(df_carte["valeur"])
+    return df_carte
+
 # ============ SIDEBAR : TOUS LES FILTRES ============
 st.sidebar.header("Filtres")
 
@@ -64,22 +95,10 @@ top_n = st.sidebar.selectbox("Taille du classement", options=[5, 10, 20], index=
 
 # ============ ZONE CENTRALE : GRAPHIQUE D'ÉVOLUTION ============
 if prenoms_selectionnes:
-    if zone_selectionnee:
-        df_filtre = df_geo[
-            (df_geo["prenom"].isin(prenoms_selectionnes)) & (df_geo["nom_geo"] == zone_selectionnee)
-        ]
-    else:
-        df_filtre = df_national[df_national["prenom"].isin(prenoms_selectionnes)]
-
-    df_filtre = df_filtre[
-        (df_filtre["periode"] >= periode_selectionnee[0]) &
-        (df_filtre["periode"] <= periode_selectionnee[1])
-    ]
-
-    df_filtre = df_filtre.copy()
-    df_filtre["sexe_label"] = df_filtre["sexe"].map({"M": "Garçons", "F": "Filles"})
-    df_filtre["serie"] = df_filtre["prenom"] + " (" + df_filtre["sexe_label"] + ")"
-    df_pivot = df_filtre.pivot_table(index="periode", columns="serie", values="valeur", fill_value=0)
+    df_pivot = preparer_donnees_graphique(
+        tuple(prenoms_selectionnes), zone_selectionnee,
+        periode_selectionnee[0], periode_selectionnee[1]
+    )
 
     titre = "Évolution de : " + ", ".join(prenoms_selectionnes)
     if zone_selectionnee:
@@ -87,7 +106,7 @@ if prenoms_selectionnes:
     st.subheader(titre)
     st.line_chart(df_pivot)
 else:
-    #st.info("Sélectionnez un ou plusieurs prénoms dans la barre latérale pour commencer.")
+    #st.info("Sélectionnez un ou plusieurs prénoms dans la barre latérale pour commencer.") #Mauvaise couleur par rapport au thème
     st.markdown(
     """
     <div style="
@@ -106,15 +125,7 @@ else:
 # ============ ZONE CENTRALE : CARTE ============
 if prenoms_selectionnes:
     prenom_carte = prenoms_selectionnes[0]
-    df_carte = df_geo[
-        (df_geo["prenom"] == prenom_carte) & (df_geo["niveau_geographique"] == "DEP") &
-        (df_geo["periode"] == annee_carte)
-    ]
-    df_carte = df_carte.groupby("geographie", as_index=False)["valeur"].sum()
-    tous_departements = df_geo[df_geo["niveau_geographique"] == "DEP"][["geographie"]].drop_duplicates()
-    df_carte = tous_departements.merge(df_carte, on="geographie", how="left")
-    df_carte["valeur"] = df_carte["valeur"].fillna(0)
-    df_carte["valeur_log"] = np.log1p(df_carte["valeur"])
+    df_carte = preparer_donnees_carte(prenom_carte, annee_carte)
 
     fig = px.choropleth(
         df_carte, geojson=geojson_dep, locations="geographie", featureidkey="properties.code",
