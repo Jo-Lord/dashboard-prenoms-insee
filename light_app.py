@@ -78,7 +78,7 @@ if sexes_filtres:
     liste_prenoms_filtree = sorted(
         df_national[df_national["sexe"].isin(sexes_filtres)]
         .groupby("prenom")["valeur"].sum()
-        .nlargest(10000)
+        .nlargest(15000)
         .index.tolist()
     )
     prenoms_selectionnes = st.sidebar.multiselect(
