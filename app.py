@@ -23,7 +23,7 @@ def load_geojson():
 
 df_national, df_geo = load_data()
 geojson_dep = load_geojson()
-liste_prenoms = sorted(df_national["prenom"].unique())
+liste_prenoms = sorted(df_national["prenom"].unique())[:100]
 liste_zones = sorted(df_geo["nom_geo"].dropna().unique())
 
 def echelle_avec_zero_blanc(nom_palette):
@@ -65,7 +65,9 @@ def preparer_donnees_carte(prenom, annee):
 st.sidebar.header("Filtres")
 
 prenoms_selectionnes = st.sidebar.multiselect(
-    "Prénom(s)", options=liste_prenoms, placeholder="Tapez un ou plusieurs prénoms..."
+    "Prénom(s)", 
+    options=liste_prenoms, 
+    placeholder="Tapez un ou plusieurs prénoms..."
 )
 zone_selectionnee = st.sidebar.selectbox(
     "Région ou département (optionnel)", options=liste_zones,
