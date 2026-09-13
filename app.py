@@ -94,6 +94,9 @@ def calculer_recap(prenom, vue, periode_min, periode_max):
         df_p = df_p[df_p["sexe"] == "M"]
     elif vue == "Fille":
         df_p = df_p[df_p["sexe"] == "F"]
+    
+    if df_p.empty:
+        return None
 
     df_par_annee = df_p.groupby("periode", as_index=False)["valeur"].sum()
 
@@ -209,9 +212,13 @@ if prenoms_selectionnes:
     recaps = {}
     for prenom in prenoms_selectionnes:
         vue = vues_par_prenom[prenom]
-        total, annee_pic, valeur_pic, derniere_annee, df_derniere = calculer_recap(
-            prenom, vue, periode_selectionnee[0], periode_selectionnee[1]
-        )
+        resultat = calculer_recap(prenom, vue, periode_selectionnee[0], periode_selectionnee[1])
+        if resultat is None:
+            with st.container(border=True):
+                st.warning(f"**{prenom}** n'a jamais été attribué à un(e) {vue.lower()} sur la période sélectionnée.")
+            continue
+
+        total, annee_pic, valeur_pic, derniere_annee, df_derniere = resultat
 
         rangs_texte = []
         for _, ligne in df_derniere.iterrows():
@@ -234,28 +241,6 @@ if prenoms_selectionnes:
     st.subheader(titre)
     st.line_chart(df_pivot)
 
-    csv_export = df_pivot.reset_index().to_csv(index=False, sep=";").encode("utf-8-sig")
-
-    st.download_button(
-        label="📥 Télécharger les données (CSV)",
-        data=csv_export,
-        file_name=f"prenoms_{'_'.join(prenoms_selectionnes)}.csv",
-        mime="text/csv"
-    )
-
-    rapport_html = generer_rapport_html(
-        prenoms_selectionnes, df_pivot, recaps,
-        periode_selectionnee[0], periode_selectionnee[1], zone_selectionnee
-    )
-
-    st.download_button(
-        label="📄 Télécharger le rapport (HTML)",
-        data=rapport_html.encode("utf-8"),
-        file_name=f"rapport_{'_'.join(prenoms_selectionnes)}.html",
-        mime="text/html"
-    )
-
-
 else:
     #st.info("Sélectionnez un ou plusieurs prénoms dans la barre latérale pour commencer.") #Mauvaise couleur par rapport au thème
     st.markdown(
@@ -275,36 +260,76 @@ else:
 
 
 # ============ ZONE CENTRALE : CARTE ============
-# ============ ZONE CENTRALE : CARTE ============
+st.subheader("Carte(s) de France")
 if prenoms_carte:
-    colonnes_carte = st.columns(len(prenoms_carte))
-
-    for i, prenom_carte in enumerate(prenoms_carte):
+    cartes_a_afficher = []
+    for prenom_carte in prenoms_carte:
         vue_carte = vues_par_prenom[prenom_carte]
         df_carte = preparer_donnees_carte(prenom_carte, vue_carte, annee_carte)
+        if df_carte["valeur"].sum() > 0:
+            cartes_a_afficher.append((prenom_carte, vue_carte, df_carte))
 
-        if echelle_carte == "Logarithmique":
-            colonne_couleur = "valeur_log"
-            titre_legende = "Naissances (log)"
-        else:
-            colonne_couleur = "valeur"
-            titre_legende = "Naissances"
+    if not cartes_a_afficher and prenoms_carte:
+        st.info(
+            "Les données géographiques détaillées ne sont pas disponibles pour ce(s) prénom(s) "
+            "sur cette année — les effectifs par département sont trop "
+            "faibles pour être publiés par l'INSEE (seuil de confidentialité), bien que le total "
+            "national n'est pas nul."
+        )
 
-        fig = px.choropleth(
-            df_carte, geojson=geojson_dep, locations="geographie", featureidkey="properties.code",
-            color=colonne_couleur,
-            color_continuous_scale=echelle_avec_zero_blanc("Viridis"),
-            scope="europe", title=f"{prenom_carte} ({vue_carte}) — {annee_carte}",
-            hover_data={"valeur": True, "valeur_log": False},
-            labels={colonne_couleur: titre_legende}
-        )
-        fig.update_geos(fitbounds="locations", visible=False)
-        fig.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            geo=dict(bgcolor="rgba(0,0,0,0)")
-        )
-        colonnes_carte[i].plotly_chart(fig, use_container_width=True)
+    figures_cartes = []
+
+    if cartes_a_afficher:
+        colonnes_carte = st.columns(len(cartes_a_afficher))
+
+        for i, (prenom_carte, vue_carte, df_carte) in enumerate(cartes_a_afficher):
+            if echelle_carte == "Logarithmique":
+                colonne_couleur = "valeur_log"
+                titre_legende = "Naissances (log)"
+            else:
+                colonne_couleur = "valeur"
+                titre_legende = "Naissances"
+
+            fig = px.choropleth(
+                df_carte, geojson=geojson_dep, locations="geographie", featureidkey="properties.code",
+                color=colonne_couleur,
+                color_continuous_scale=echelle_avec_zero_blanc("Viridis"),
+                scope="europe", title=f"{prenom_carte} ({vue_carte}) — {annee_carte}",
+                hover_data={"valeur": True, "valeur_log": False},
+                labels={colonne_couleur: titre_legende}
+            )
+            fig.update_geos(fitbounds="locations", visible=False)
+            fig.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                geo=dict(bgcolor="rgba(0,0,0,0)")
+            )
+            colonnes_carte[i].plotly_chart(fig, use_container_width=True)
+            figures_cartes.append(fig)
+else:
+    figures_cartes = []
+
+# ============ EXPORT (CSV + rapport HTML) — placé ici, après la carte ============
+if prenoms_selectionnes:
+    csv_export = df_pivot.reset_index().to_csv(index=False, sep=";").encode("utf-8-sig")
+    st.download_button(
+        label="📥 Télécharger les données (CSV)",
+        data=csv_export,
+        file_name=f"prenoms_{'_'.join(prenoms_selectionnes)}.csv",
+        mime="text/csv"
+    )
+
+    rapport_html = generer_rapport_html(
+        prenoms_selectionnes, df_pivot, recaps,
+        periode_selectionnee[0], periode_selectionnee[1], zone_selectionnee,
+        figures_cartes
+    )
+    st.download_button(
+        label="📄 Télécharger le rapport (HTML)",
+        data=rapport_html.encode("utf-8"),
+        file_name=f"rapport_{'_'.join(prenoms_selectionnes)}.html",
+        mime="text/html"
+    )
 
 # ============ ZONE CENTRALE : CLASSEMENT ============
 st.subheader("Classement des prénoms")
