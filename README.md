@@ -1,10 +1,10 @@
 # Explorateur des prénoms français
 
-Dashboard interactif explorant l'évolution des prénoms donnés en France depuis 1985, à partir des données officielles de l'INSEE.
+Dashboard interactif explorant l'évolution et la répartition des prénoms donnés en France depuis 1900, à partir des données officielles de l'INSEE.
 
 ## 🔗 Démo
 
-**[App en ligne](https://dashboard-prenoms-insee.streamlit.app)**
+**[App en ligne](https://jl-dashboard-prenoms.streamlit.app/)**
 
 ![Démo du dashboard](demo.gif)
 
